@@ -2,6 +2,7 @@ package io.heckel.ntfy.msg
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import io.heckel.ntfy.R
 import io.heckel.ntfy.db.Action
 import io.heckel.ntfy.db.Notification
@@ -62,18 +63,28 @@ class BroadcastService(private val ctx: Context) {
     class BroadcastReceiver : android.content.BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             Log.d(TAG, "Broadcast received: $intent")
-            when (intent.action) {
+            when (intent.action ?: return) {
                 MESSAGE_SEND_ACTION -> send(context, intent)
+                else -> Log.w(TAG, "Rejecting unexpected broadcast action")
             }
         }
 
         private fun send(ctx: Context, intent: Intent) {
             val api = ApiService(ctx)
-            val baseUrl = getStringExtra(intent, "base_url") ?: ctx.getString(R.string.app_base_url)
-            val topic = getStringExtra(intent, "topic") ?: return
-            val message = getStringExtra(intent, "message") ?: return
-            val title = getStringExtra(intent, "title") ?: ""
-            val tags = getStringExtra(intent,"tags") ?: ""
+            val baseUrl = normalizeBaseUrl(getStringExtra(intent, "base_url") ?: ctx.getString(R.string.app_base_url)) ?: run {
+                Log.w(TAG, "Rejecting SEND_MESSAGE intent with invalid base URL")
+                return
+            }
+            val topic = getStringExtra(intent, "topic")?.trim()?.takeIf { it.isNotEmpty() && it.length <= MAX_TOPIC_LENGTH } ?: run {
+                Log.w(TAG, "Rejecting SEND_MESSAGE intent with invalid topic")
+                return
+            }
+            val message = getStringExtra(intent, "message")?.takeIf { it.length <= MAX_MESSAGE_LENGTH } ?: run {
+                Log.w(TAG, "Rejecting SEND_MESSAGE intent with invalid message")
+                return
+            }
+            val title = getStringExtra(intent, "title")?.take(MAX_TITLE_LENGTH) ?: ""
+            val tags = getStringExtra(intent,"tags")?.take(MAX_TAGS_LENGTH) ?: ""
             val priority = when (getStringExtra(intent, "priority")) {
                 "min", "1" -> 1
                 "low", "2" -> 2
@@ -82,7 +93,7 @@ class BroadcastService(private val ctx: Context) {
                 "urgent", "max", "5" -> 5
                 else -> 0
             }
-            val delay = getStringExtra(intent,"delay") ?: ""
+            val delay = getStringExtra(intent,"delay")?.take(MAX_DELAY_LENGTH) ?: ""
             GlobalScope.launch(Dispatchers.IO) {
                 val repository = Repository.getInstance(ctx)
                 val user = repository.getUser(baseUrl) // May be null
@@ -117,11 +128,28 @@ class BroadcastService(private val ctx: Context) {
             }
             return null
         }
+
+        private fun normalizeBaseUrl(value: String): String? {
+            val trimmed = value.trim()
+            val parsed = runCatching { Uri.parse(trimmed) }.getOrNull() ?: return null
+            if (!parsed.isHierarchical || parsed.scheme?.lowercase() != "https") {
+                return null
+            }
+            if (parsed.host.isNullOrBlank()) {
+                return null
+            }
+            return trimmed
+        }
     }
 
     companion object {
         private const val TAG = "NtfyBroadcastService"
         private const val DOES_NOT_EXIST = -2586000
+        private const val MAX_TOPIC_LENGTH = 256
+        private const val MAX_MESSAGE_LENGTH = 32_768
+        private const val MAX_TITLE_LENGTH = 256
+        private const val MAX_TAGS_LENGTH = 1_024
+        private const val MAX_DELAY_LENGTH = 64
 
         // These constants cannot be changed without breaking the contract; also see manifest
         private const val MESSAGE_RECEIVED_ACTION = "io.heckel.ntfy.MESSAGE_RECEIVED"
