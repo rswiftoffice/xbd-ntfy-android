@@ -198,23 +198,26 @@ class Repository(private val sharedPrefs: SharedPreferences, database: Database)
     }
 
     suspend fun getUsers(): List<User> {
-        return userDao.list()
+        return userDao.list().map(::decryptUser)
     }
 
     fun getUsersLiveData(): LiveData<List<User>> {
-        return userDao.listFlow().asLiveData()
+        return userDao.listFlow().asLiveData().map { users ->
+            users.map(::decryptUser)
+        }
     }
 
     suspend fun addUser(user: User) {
-        userDao.insert(user)
+        userDao.insert(encryptUser(user))
     }
 
     suspend fun updateUser(user: User) {
-        userDao.update(user)
+        userDao.update(encryptUser(user))
     }
 
     suspend fun getUser(baseUrl: String): User? {
-        return userDao.get(baseUrl)
+        val user = userDao.get(baseUrl) ?: return null
+        return decryptUserAndMigrateIfNeeded(user)
     }
 
     suspend fun deleteUser(baseUrl: String) {
@@ -224,15 +227,16 @@ class Repository(private val sharedPrefs: SharedPreferences, database: Database)
     // Trusted certificates
 
     suspend fun getTrustedCertificates(): List<TrustedCertificate> {
-        return trustedCertificateDao.list()
+        return trustedCertificateDao.list().map(::decryptTrustedCertificate)
     }
 
     suspend fun getTrustedCertificate(baseUrl: String): TrustedCertificate? {
-        return trustedCertificateDao.get(baseUrl)
+        val cert = trustedCertificateDao.get(baseUrl) ?: return null
+        return decryptTrustedCertificateAndMigrateIfNeeded(cert)
     }
 
     suspend fun addTrustedCertificate(baseUrl: String, pem: String) {
-        trustedCertificateDao.insert(TrustedCertificate(baseUrl, pem))
+        trustedCertificateDao.insert(encryptTrustedCertificate(TrustedCertificate(baseUrl, pem)))
     }
 
     suspend fun removeTrustedCertificate(baseUrl: String) {
@@ -242,15 +246,18 @@ class Repository(private val sharedPrefs: SharedPreferences, database: Database)
     // Client certificates
 
     suspend fun getClientCertificates(): List<ClientCertificate> {
-        return clientCertificateDao.list()
+        return clientCertificateDao.list().map(::decryptClientCertificate)
     }
 
     suspend fun getClientCertificate(baseUrl: String): ClientCertificate? {
-        return clientCertificateDao.get(baseUrl)
+        val cert = clientCertificateDao.get(baseUrl) ?: return null
+        return decryptClientCertificateAndMigrateIfNeeded(cert)
     }
 
     suspend fun addClientCertificate(baseUrl: String, p12Base64: String, password: String) {
-        clientCertificateDao.insert(ClientCertificate(baseUrl, p12Base64, password))
+        clientCertificateDao.insert(
+            encryptClientCertificate(ClientCertificate(baseUrl, p12Base64, password))
+        )
     }
 
     suspend fun removeClientCertificate(baseUrl: String) {
@@ -728,6 +735,60 @@ class Repository(private val sharedPrefs: SharedPreferences, database: Database)
                 newInstance
             }
         }
+    }
+
+    private fun encryptUser(user: User): User {
+        return user.copy(password = SensitiveDataCipher.encrypt(user.password))
+    }
+
+    private fun decryptUser(user: User): User {
+        return user.copy(password = SensitiveDataCipher.decrypt(user.password))
+    }
+
+    private suspend fun decryptUserAndMigrateIfNeeded(user: User): User {
+        val decrypted = decryptUser(user)
+        if (!SensitiveDataCipher.isEncrypted(user.password)) {
+            userDao.update(encryptUser(decrypted))
+        }
+        return decrypted
+    }
+
+    private fun encryptTrustedCertificate(cert: TrustedCertificate): TrustedCertificate {
+        return cert.copy(pem = SensitiveDataCipher.encrypt(cert.pem))
+    }
+
+    private fun decryptTrustedCertificate(cert: TrustedCertificate): TrustedCertificate {
+        return cert.copy(pem = SensitiveDataCipher.decrypt(cert.pem))
+    }
+
+    private suspend fun decryptTrustedCertificateAndMigrateIfNeeded(cert: TrustedCertificate): TrustedCertificate {
+        val decrypted = decryptTrustedCertificate(cert)
+        if (!SensitiveDataCipher.isEncrypted(cert.pem)) {
+            trustedCertificateDao.insert(encryptTrustedCertificate(decrypted))
+        }
+        return decrypted
+    }
+
+    private fun encryptClientCertificate(cert: ClientCertificate): ClientCertificate {
+        return cert.copy(
+            p12Base64 = SensitiveDataCipher.encrypt(cert.p12Base64),
+            password = SensitiveDataCipher.encrypt(cert.password)
+        )
+    }
+
+    private fun decryptClientCertificate(cert: ClientCertificate): ClientCertificate {
+        return cert.copy(
+            p12Base64 = SensitiveDataCipher.decrypt(cert.p12Base64),
+            password = SensitiveDataCipher.decrypt(cert.password)
+        )
+    }
+
+    private suspend fun decryptClientCertificateAndMigrateIfNeeded(cert: ClientCertificate): ClientCertificate {
+        val decrypted = decryptClientCertificate(cert)
+        if (!SensitiveDataCipher.isEncrypted(cert.p12Base64) || !SensitiveDataCipher.isEncrypted(cert.password)) {
+            clientCertificateDao.insert(encryptClientCertificate(decrypted))
+        }
+        return decrypted
     }
 }
 
