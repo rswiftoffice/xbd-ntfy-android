@@ -6,7 +6,6 @@ plugins {
 
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
-apply plugin: 'com.google.gms.google-services'
 
 android {
     namespace "io.heckel.ntfy"
@@ -30,6 +29,10 @@ android {
         buildFeatures {
             buildConfig true
         }
+        buildConfigField 'boolean', 'FIREBASE_AVAILABLE', 'false'
+        buildConfigField 'boolean', 'RATE_APP_AVAILABLE', 'false'
+        buildConfigField 'boolean', 'PAYMENT_LINKS_AVAILABLE', 'true'
+        buildConfigField 'String', 'FLAVOR', '"fdroid"'
     }
 
     buildTypes {
@@ -37,6 +40,7 @@ android {
             minifyEnabled false
             shrinkResources false
             debuggable false
+            signingConfig signingConfigs.debug
             // DEV/TEST ONLY: Uncomment this to test the release build with a debug key.
             //                This is required to test against the production Firebase config.
             // signingConfig signingConfigs.debug
@@ -47,20 +51,6 @@ android {
             debuggable true
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
-        }
-    }
-
-    flavorDimensions "store"
-    productFlavors {
-        play {
-            buildConfigField 'boolean', 'FIREBASE_AVAILABLE', 'true'
-            buildConfigField 'boolean', 'RATE_APP_AVAILABLE', 'true'
-            buildConfigField 'boolean', 'PAYMENT_LINKS_AVAILABLE', 'false' // Google Play Payments Policy, see #1463
-        }
-        fdroid {
-            buildConfigField 'boolean', 'FIREBASE_AVAILABLE', 'false'
-            buildConfigField 'boolean', 'RATE_APP_AVAILABLE', 'false'
-            buildConfigField 'boolean', 'PAYMENT_LINKS_AVAILABLE', 'true'
         }
     }
 
@@ -77,13 +67,6 @@ android {
             ]
         }
     }
-}
-
-// Disables GoogleServices tasks for F-Droid variant
-project.extensions.getByName("android").applicationVariants.all { variant ->
-    def shouldProcessGoogleServices = variant.flavorName == "play"
-    def googleTask = tasks.named("process${variant.name.capitalize()}GoogleServices").get()
-    googleTask.enabled = shouldProcessGoogleServices
 }
 
 dependencies {
@@ -107,9 +90,6 @@ dependencies {
 
     // OkHttp (HTTP library)
     implementation 'com.squareup.okhttp3:okhttp:5.3.2'
-
-    // Firebase, sigh ... (only Google Play)
-    playImplementation 'com.google.firebase:firebase-messaging:25.0.1'
 
     // RecyclerView
     implementation "androidx.recyclerview:recyclerview:1.4.0"

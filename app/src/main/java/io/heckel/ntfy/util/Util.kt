@@ -124,11 +124,35 @@ fun validBaseUrl(url: String): Boolean {
 }
 
 /**
+ * Validates whether the provided base URL points to an approved internal endpoint.
+ * The policy allows approved internal broker hosts (prod + staging).
+ */
+fun validInternalBaseUrl(url: String): Boolean {
+    val httpUrl = url.toHttpUrlOrNull() ?: return false
+    if (httpUrl.scheme != "https") {
+        return false
+    }
+    if (httpUrl.host !in INTERNAL_BASE_URL_HOST_ALLOWLIST) {
+        return false
+    }
+    val hasPath = httpUrl.pathSegments.any { it.isNotEmpty() }
+    if (hasPath) {
+        return false
+    }
+    return httpUrl.port == 443
+}
+
+/**
  * Normalizes a base URL by removing the trailing slash if present.
  */
 fun normalizeBaseUrl(url: String): String {
     return url.trimEnd('/')
 }
+
+private val INTERNAL_BASE_URL_HOST_ALLOWLIST = setOf(
+    "unifiedpush.airforceraid.swiftoffice.org",
+    "unifiedpush.airforceraid-stag.swiftoffice.org",
+)
 
 fun formatDateShort(timestampSecs: Long): String {
     val date = Date(timestampSecs*1000)
