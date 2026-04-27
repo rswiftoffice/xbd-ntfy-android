@@ -188,21 +188,6 @@
                 android:exported="false">
         </receiver>
 
-        <!-- Firebase messaging (note that this is empty in the F-Droid flavor) -->
-        <service
-                android:name=".firebase.FirebaseService"
-                android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
-            </intent-filter>
-        </service>
-        <meta-data
-                android:name="firebase_analytics_collection_enabled"
-                android:value="false"/>
-        <meta-data
-                android:name="com.google.firebase.messaging.default_notification_icon"
-                android:resource="@drawable/ic_notification"/>
-
         <!-- FileProvider required for older Android versions (<= P), to allow passing the file URI in the open intent.
              Avoids "exposed beyond app through Intent.getData" exception, see see https://stackoverflow.com/a/57288352/1440785 -->
         <provider

@@ -14,6 +14,7 @@ import io.heckel.ntfy.R
 import io.heckel.ntfy.util.AfterChangedTextWatcher
 import io.heckel.ntfy.util.normalizeBaseUrl
 import io.heckel.ntfy.util.validBaseUrl
+import io.heckel.ntfy.util.validInternalBaseUrl
 
 class DefaultServerFragment : DialogFragment() {
     private var currentUrl: String? = null
@@ -118,6 +119,10 @@ class DefaultServerFragment : DialogFragment() {
         if (!this::listener.isInitialized) return
         val url = urlView.text?.toString() ?: ""
         val normalizedUrl = if (url.isEmpty()) "" else normalizeBaseUrl(url)
+        if (normalizedUrl.isNotEmpty() && (!validBaseUrl(normalizedUrl) || !validInternalBaseUrl(normalizedUrl))) {
+            validateInput()
+            return
+        }
         listener.onDefaultServerUpdated(this, normalizedUrl)
         dismiss()
     }
@@ -139,7 +144,7 @@ class DefaultServerFragment : DialogFragment() {
         if (url.isEmpty()) {
             // Empty is allowed (means use default)
             saveMenuItem.isEnabled = true
-        } else if (!validBaseUrl(url)) {
+        } else if (!validBaseUrl(url) || !validInternalBaseUrl(normalizeBaseUrl(url))) {
             // Show error for invalid URL
             urlViewLayout.error = getString(R.string.default_server_dialog_url_error_invalid)
             saveMenuItem.isEnabled = false
