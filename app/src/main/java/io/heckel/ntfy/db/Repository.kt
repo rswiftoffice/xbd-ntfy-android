@@ -744,16 +744,22 @@ class Repository(private val sharedPrefs: SharedPreferences, database: Database)
     }
 
     private fun encryptUser(user: User): User {
-        return user.copy(password = SensitiveDataCipher.encrypt(user.password))
+        return user.copy(
+            username = SensitiveDataCipher.encrypt(user.username),
+            password = SensitiveDataCipher.encrypt(user.password),
+        )
     }
 
     private fun decryptUser(user: User): User {
-        return user.copy(password = SensitiveDataCipher.decrypt(user.password))
+        return user.copy(
+            username = SensitiveDataCipher.decrypt(user.username),
+            password = SensitiveDataCipher.decrypt(user.password),
+        )
     }
 
     private suspend fun decryptUserAndMigrateIfNeeded(user: User): User {
         val decrypted = decryptUser(user)
-        if (!SensitiveDataCipher.isEncrypted(user.password)) {
+        if (!SensitiveDataCipher.isEncrypted(user.username) || !SensitiveDataCipher.isEncrypted(user.password)) {
             userDao.update(encryptUser(decrypted))
         }
         return decrypted

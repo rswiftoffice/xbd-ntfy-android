@@ -34,12 +34,14 @@ class SensitiveDataAtRestTest {
         repository.addClientCertificate(baseUrl, p12Base64, p12Password)
 
         val rawDb = database.openHelper.readableDatabase
+        assertEncryptedValue(rawDb, "SELECT username FROM User WHERE baseUrl = ?", arrayOf(baseUrl), username)
         assertEncryptedValue(rawDb, "SELECT password FROM User WHERE baseUrl = ?", arrayOf(baseUrl), password)
         assertEncryptedValue(rawDb, "SELECT pem FROM TrustedCertificate WHERE baseUrl = ?", arrayOf(baseUrl), pem)
         assertEncryptedValue(rawDb, "SELECT p12Base64 FROM ClientCertificate WHERE baseUrl = ?", arrayOf(baseUrl), p12Base64)
         assertEncryptedValue(rawDb, "SELECT password FROM ClientCertificate WHERE baseUrl = ?", arrayOf(baseUrl), p12Password)
 
         // Verify repository still returns plaintext in memory.
+        assertEquals(username, repository.getUser(baseUrl)?.username)
         assertEquals(password, repository.getUser(baseUrl)?.password)
         assertEquals(pem, repository.getTrustedCertificate(baseUrl)?.pem)
         assertEquals(p12Base64, repository.getClientCertificate(baseUrl)?.p12Base64)
@@ -49,6 +51,32 @@ class SensitiveDataAtRestTest {
         repository.deleteUser(baseUrl)
         repository.removeTrustedCertificate(baseUrl)
         repository.removeClientCertificate(baseUrl)
+    }
+
+    @Test
+    fun username_plaintext_isMigratedToEncrypted_onFirstRead() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val repository = Repository.getInstance(context)
+        val database = Database.getInstance(context)
+        val baseUrl = "https://scr-m2-migrate-test.local"
+
+        // Insert plaintext username directly, bypassing the Repository encrypt path,
+        // to simulate a pre-existing row from before this fix.
+        database.openHelper.writableDatabase.execSQL(
+            "INSERT OR REPLACE INTO User (baseUrl, username, password) VALUES (?, ?, ?)",
+            arrayOf(baseUrl, "alice", SensitiveDataCipher.encrypt("hunter2"))
+        )
+
+        // First read triggers decryptUserAndMigrateIfNeeded.
+        val user = repository.getUser(baseUrl)
+        assertEquals("alice", user?.username)
+        assertEquals("hunter2", user?.password)
+
+        // Raw DB username should now carry the enc_v1: prefix.
+        val rawDb = database.openHelper.readableDatabase
+        assertEncryptedValue(rawDb, "SELECT username FROM User WHERE baseUrl = ?", arrayOf(baseUrl), "alice")
+
+        repository.deleteUser(baseUrl)
     }
 
     private fun assertEncryptedValue(
