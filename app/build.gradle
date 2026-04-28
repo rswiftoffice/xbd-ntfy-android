@@ -70,6 +70,13 @@ android {
         }
     }
 
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def timestamp = new Date().format("yyyyMMdd-HHmm")
+            outputFileName = "raid-ntfy-${variant.versionName}-${timestamp}.apk"
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
