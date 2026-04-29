@@ -33,7 +33,7 @@ object SensitiveDataCipher {
             val encrypted = cipher.doFinal(value.toByteArray(StandardCharsets.UTF_8))
             val payload = cipher.iv + encrypted
             PREFIX + Base64.encodeToString(payload, Base64.NO_WRAP)
-        }.getOrDefault(value)
+        }.getOrThrow()
     }
 
     fun decrypt(value: String): String {
