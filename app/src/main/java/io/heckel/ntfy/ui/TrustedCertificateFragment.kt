@@ -356,7 +356,14 @@ class TrustedCertificateFragment : DialogFragment() {
         val url = baseUrl ?: return
         lifecycleScope.launch(Dispatchers.IO) {
             val pem = CertUtil.encodeCertificateToPem(certificate)
-            repository.addTrustedCertificate(url, pem)
+            try {
+                repository.addTrustedCertificate(url, pem)
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    showError(getString(R.string.error_encryption_failed))
+                }
+                return@launch
+            }
             withContext(Dispatchers.Main) {
                 if (mode == Mode.ADD) {
                     Toast.makeText(context, R.string.common_certificate_added_toast, Toast.LENGTH_SHORT).show()
