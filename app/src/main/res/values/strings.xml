@@ -566,4 +566,5 @@
     <string name="client_certificate_dialog_error_wrong_password">Wrong password or invalid PKCS#12 file</string>
     <string name="client_certificate_dialog_error_invalid_p12_password">Invalid password or corrupted PKCS#12 file</string>
     <string name="client_certificate_dialog_error_invalid_url">Invalid service URL</string>
+    <string name="error_encryption_failed">Unable to save: encryption failed. Please try again.</string>
 </resources>
