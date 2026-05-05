@@ -298,7 +298,7 @@ class ClientCertificateFragment : DialogFragment() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    showError(getString(R.string.client_certificate_dialog_error_invalid_p12_password))
+                    showError(getString(R.string.error_encryption_failed))
                 }
             }
         }
