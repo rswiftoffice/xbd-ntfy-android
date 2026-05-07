@@ -40,10 +40,10 @@ object SensitiveDataCipher {
         if (!value.startsWith(PREFIX)) {
             return value
         }
-        return runCatching {
+        return try {
             val payload = Base64.decode(value.removePrefix(PREFIX), Base64.DEFAULT)
             if (payload.size <= 12) {
-                return@runCatching value
+                throw IllegalArgumentException("Encrypted payload too short: ${payload.size} bytes")
             }
             val iv = payload.copyOfRange(0, 12)
             val encrypted = payload.copyOfRange(12, payload.size)
@@ -51,7 +51,12 @@ object SensitiveDataCipher {
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateSecretKey(), GCMParameterSpec(GCM_TAG_SIZE_BITS, iv))
             val decrypted = cipher.doFinal(encrypted)
             String(decrypted, StandardCharsets.UTF_8)
-        }.getOrDefault(value)
+        } catch (e: Exception) {
+            // Symmetric with encrypt(): surface failures so callers can clean up the orphaned
+            // ciphertext row instead of silently passing it through as if it were plaintext
+            // (which previously caused enc_v1:... to be sent as the HTTP Basic auth username).
+            throw SensitiveDataDecryptionException(e)
+        }
     }
 
     fun isEncrypted(value: String): Boolean = value.startsWith(PREFIX)
@@ -75,3 +80,6 @@ object SensitiveDataCipher {
         return keyGenerator.generateKey()
     }
 }
+
+class SensitiveDataDecryptionException(cause: Throwable)
+    : Exception("Decryption of sensitive data failed", cause)
