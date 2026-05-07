@@ -60,3 +60,4 @@ proguard-project.txt
 
 # Local Claude/Cursor agent artifacts
 .claude/
+CLAUDE.md
