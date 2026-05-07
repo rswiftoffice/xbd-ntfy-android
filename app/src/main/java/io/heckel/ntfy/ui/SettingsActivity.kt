@@ -1077,7 +1077,15 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
 
     override fun onAddUser(dialog: DialogFragment, user: User) {
         lifecycleScope.launch(Dispatchers.IO) {
-            repository.addUser(user) // New users are not used, so no service refresh required
+            try {
+                repository.addUser(user) // New users are not used, so no service refresh required
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to add user: ${e.message}", e)
+                runOnUiThread {
+                    Toast.makeText(this@SettingsActivity, getString(R.string.error_encryption_failed), Toast.LENGTH_LONG).show()
+                }
+                return@launch
+            }
             runOnUiThread {
                 if (this@SettingsActivity::userSettingsFragment.isInitialized) {
                     userSettingsFragment.reload()
@@ -1088,7 +1096,15 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
 
     override fun onUpdateUser(dialog: DialogFragment, user: User) {
         lifecycleScope.launch(Dispatchers.IO) {
-            repository.updateUser(user)
+            try {
+                repository.updateUser(user)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to update user: ${e.message}", e)
+                runOnUiThread {
+                    Toast.makeText(this@SettingsActivity, getString(R.string.error_encryption_failed), Toast.LENGTH_LONG).show()
+                }
+                return@launch
+            }
             serviceManager.refresh()
             runOnUiThread {
                 if (this@SettingsActivity::userSettingsFragment.isInitialized) {
