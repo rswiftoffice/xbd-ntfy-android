@@ -200,12 +200,12 @@ class Repository(private val sharedPrefs: SharedPreferences, database: Database)
     }
 
     suspend fun getUsers(): List<User> {
-        return userDao.list().map(::decryptUser)
+        return userDao.list().mapNotNull(::tryDecryptUserOrLog)
     }
 
     fun getUsersLiveData(): LiveData<List<User>> {
         return userDao.listFlow().asLiveData().map { users ->
-            users.map(::decryptUser)
+            users.mapNotNull(::tryDecryptUserOrLog)
         }
     }
 
@@ -219,7 +219,15 @@ class Repository(private val sharedPrefs: SharedPreferences, database: Database)
 
     suspend fun getUser(baseUrl: String): User? {
         val user = userDao.get(baseUrl) ?: return null
-        return decryptUserAndMigrateIfNeeded(user)
+        return try {
+            decryptUserAndMigrateIfNeeded(user)
+        } catch (e: SensitiveDataDecryptionException) {
+            // Orphan row: encrypted under a Keystore key the device no longer has (typically a
+            // backup/restore round-trip). Drop it so re-login can succeed without a UNIQUE collision.
+            Log.w(TAG, "User credentials for ${user.baseUrl} unreadable; deleting orphan row", e)
+            userDao.delete(user.baseUrl)
+            null
+        }
     }
 
     suspend fun deleteUser(baseUrl: String) {
@@ -229,12 +237,18 @@ class Repository(private val sharedPrefs: SharedPreferences, database: Database)
     // Trusted certificates
 
     suspend fun getTrustedCertificates(): List<TrustedCertificate> {
-        return trustedCertificateDao.list().map(::decryptTrustedCertificate)
+        return trustedCertificateDao.list().mapNotNull(::tryDecryptTrustedCertificateOrLog)
     }
 
     suspend fun getTrustedCertificate(baseUrl: String): TrustedCertificate? {
         val cert = trustedCertificateDao.get(baseUrl) ?: return null
-        return decryptTrustedCertificateAndMigrateIfNeeded(cert)
+        return try {
+            decryptTrustedCertificateAndMigrateIfNeeded(cert)
+        } catch (e: SensitiveDataDecryptionException) {
+            Log.w(TAG, "Trusted certificate for ${cert.baseUrl} unreadable; deleting orphan row", e)
+            trustedCertificateDao.delete(cert.baseUrl)
+            null
+        }
     }
 
     suspend fun addTrustedCertificate(baseUrl: String, pem: String) {
@@ -248,12 +262,18 @@ class Repository(private val sharedPrefs: SharedPreferences, database: Database)
     // Client certificates
 
     suspend fun getClientCertificates(): List<ClientCertificate> {
-        return clientCertificateDao.list().map(::decryptClientCertificate)
+        return clientCertificateDao.list().mapNotNull(::tryDecryptClientCertificateOrLog)
     }
 
     suspend fun getClientCertificate(baseUrl: String): ClientCertificate? {
         val cert = clientCertificateDao.get(baseUrl) ?: return null
-        return decryptClientCertificateAndMigrateIfNeeded(cert)
+        return try {
+            decryptClientCertificateAndMigrateIfNeeded(cert)
+        } catch (e: SensitiveDataDecryptionException) {
+            Log.w(TAG, "Client certificate for ${cert.baseUrl} unreadable; deleting orphan row", e)
+            clientCertificateDao.delete(cert.baseUrl)
+            null
+        }
     }
 
     suspend fun addClientCertificate(baseUrl: String, p12Base64: String, password: String) {
@@ -757,6 +777,18 @@ class Repository(private val sharedPrefs: SharedPreferences, database: Database)
         )
     }
 
+    // List-read helper: skip rows we cannot decrypt instead of failing the whole list. Cleanup
+    // of the orphaned row happens lazily via getUser(baseUrl), since list reads are also used by
+    // backup export and we don't want destructive side effects there.
+    private fun tryDecryptUserOrLog(user: User): User? {
+        return try {
+            decryptUser(user)
+        } catch (e: SensitiveDataDecryptionException) {
+            Log.w(TAG, "Skipping unreadable user for ${user.baseUrl}", e)
+            null
+        }
+    }
+
     private suspend fun decryptUserAndMigrateIfNeeded(user: User): User {
         val decrypted = decryptUser(user)
         if (!SensitiveDataCipher.isEncrypted(user.username) || !SensitiveDataCipher.isEncrypted(user.password)) {
@@ -771,6 +803,15 @@ class Repository(private val sharedPrefs: SharedPreferences, database: Database)
 
     private fun decryptTrustedCertificate(cert: TrustedCertificate): TrustedCertificate {
         return cert.copy(pem = SensitiveDataCipher.decrypt(cert.pem))
+    }
+
+    private fun tryDecryptTrustedCertificateOrLog(cert: TrustedCertificate): TrustedCertificate? {
+        return try {
+            decryptTrustedCertificate(cert)
+        } catch (e: SensitiveDataDecryptionException) {
+            Log.w(TAG, "Skipping unreadable trusted certificate for ${cert.baseUrl}", e)
+            null
+        }
     }
 
     private suspend fun decryptTrustedCertificateAndMigrateIfNeeded(cert: TrustedCertificate): TrustedCertificate {
@@ -793,6 +834,15 @@ class Repository(private val sharedPrefs: SharedPreferences, database: Database)
             p12Base64 = SensitiveDataCipher.decrypt(cert.p12Base64),
             password = SensitiveDataCipher.decrypt(cert.password)
         )
+    }
+
+    private fun tryDecryptClientCertificateOrLog(cert: ClientCertificate): ClientCertificate? {
+        return try {
+            decryptClientCertificate(cert)
+        } catch (e: SensitiveDataDecryptionException) {
+            Log.w(TAG, "Skipping unreadable client certificate for ${cert.baseUrl}", e)
+            null
+        }
     }
 
     private suspend fun decryptClientCertificateAndMigrateIfNeeded(cert: ClientCertificate): ClientCertificate {
