@@ -165,23 +165,28 @@ class ApiService(private val context: Context) {
         return Pair(call, response.body.source())
     }
 
+    suspend fun verifyAccount(baseUrl: String, user: User): Boolean {
+        return authorize(baseUrl, "$baseUrl/v1/account", user)
+    }
+
     suspend fun checkAuth(baseUrl: String, topic: String, user: User?): Boolean {
         if (user == null) {
             Log.d(TAG, "Checking anonymous read against ${topicUrl(baseUrl, topic)}")
         } else {
             Log.d(TAG, "Checking read access for user ${user.username} against ${topicUrl(baseUrl, topic)}")
         }
-        val url = topicUrlAuth(baseUrl, topic)
+        return authorize(baseUrl, topicUrlAuth(baseUrl, topic), user)
+    }
+
+    // Shared auth-probe path: 2xx → true · 401|403 → false · anonymous 404 → true
+    // (legacy ntfy servers return 404 for /<topic>/auth) · anything else throws.
+    private suspend fun authorize(baseUrl: String, url: String, user: User?): Boolean {
         val customHeaders = repository.getCustomHeaders(baseUrl)
         val request = HttpUtil.requestBuilder(url, user, customHeaders).build()
         HttpUtil.defaultClient(context, baseUrl).newCall(request).execute().use { response ->
-            if (response.isSuccessful) {
-                return true
-            } else if (user == null && response.code == 404) {
-                return true // Special case: Anonymous login to old servers return 404 since /<topic>/auth doesn't exist
-            } else if (response.code == 401 || response.code == 403) { // See server/server.go
-                return false
-            }
+            if (response.isSuccessful) return true
+            if (user == null && response.code == 404) return true
+            if (response.code == 401 || response.code == 403) return false
             throw Exception("Unexpected server response ${response.code}")
         }
     }

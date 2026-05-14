@@ -7,6 +7,7 @@ import androidx.core.content.ContextCompat
 import androidx.work.*
 import io.heckel.ntfy.app.Application
 import io.heckel.ntfy.util.Log
+import io.heckel.ntfy.util.effectiveBaseUrl
 import io.heckel.ntfy.util.isNetworkAvailable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -42,6 +43,16 @@ class SubscriberServiceManager(private val context: Context) {
             withContext(Dispatchers.IO) {
                 val app = context.applicationContext as Application
                 val workManager = WorkManager.getInstance(context)
+                // Login-gate parity: no `User` row at the effective default URL = not logged in.
+                // Refusing to start (or stop-if-running) keeps reboot, logout, and any other
+                // refresh() trigger consistent with the activity-layer gate — no notifications
+                // flow while the user is signed out.
+                val user = app.repository.getUser(effectiveBaseUrl(context, app.repository))
+                if (user == null) {
+                    Log.d(TAG, "ServiceStartWorker: no user logged in for effective default URL, stopping service (work ID: ${id})")
+                    Intent(context, SubscriberService::class.java).also { context.stopService(it) }
+                    return@withContext
+                }
                 val subscriptionIdsWithInstantStatus = app.repository.getSubscriptionIdsWithInstantStatus()
                 val hasNetwork = isNetworkAvailable(context)
                 val instantSubscriptions = subscriptionIdsWithInstantStatus.toList().filter { (_, instant) -> instant }.size

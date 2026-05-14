@@ -45,6 +45,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.android.material.appbar.AppBarLayout
+import io.heckel.ntfy.util.applyLoginGateOrRedirect
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import io.heckel.ntfy.BuildConfig
@@ -140,6 +141,11 @@ class MainActivity : AppCompatActivity(), AddFragment.SubscribeListener, Notific
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // Login gate (AD1/AD3): redirect to LoginActivity if no User row for the
+        // effective default server. Must run before any observers, workers, or Firebase
+        // subscribes — anything below this point must not leak when unauthenticated.
+        if (applyLoginGateOrRedirect(repository)) return
 
         Log.init(this) // Init logs in all entry points
         Log.d(TAG, "Create $this")
@@ -399,6 +405,10 @@ class MainActivity : AppCompatActivity(), AddFragment.SubscribeListener, Notific
 
     override fun onResume() {
         super.onResume()
+        // Lazy re-gate (AD1, FR4): returning from Settings (logout or default-server change)
+        // re-runs the same gate. Must precede the rest of onResume so no list redraw or
+        // menu rebinding leaks when the user has just been logged out.
+        if (applyLoginGateOrRedirect(repository)) return
         showHideNotificationMenuItems()
         showHideConnectionErrorMenuItem(repository.getConnectionDetails())
         showHideNoNetworkBanner()
