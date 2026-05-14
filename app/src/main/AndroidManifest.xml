@@ -70,6 +70,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Login activity (slice 1: stub; no intent-filter — MainActivity remains launcher, the gate redirects) -->
+        <activity
+                android:name=".ui.LoginActivity"
+                android:exported="false" />
+
         <!-- Settings activity -->
         <activity
                 android:name=".ui.SettingsActivity"

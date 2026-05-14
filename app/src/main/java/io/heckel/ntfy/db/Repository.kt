@@ -15,7 +15,6 @@ import androidx.lifecycle.map
 import io.heckel.ntfy.msg.ApiService
 import io.heckel.ntfy.util.Log
 import io.heckel.ntfy.util.validBaseUrl
-import io.heckel.ntfy.util.validInternalBaseUrl
 import io.heckel.ntfy.util.validUrl
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -500,8 +499,8 @@ class Repository(private val sharedPrefs: SharedPreferences, database: Database)
     }
 
     fun setDefaultBaseUrl(baseUrl: String) {
-        if (baseUrl.isNotEmpty() && (!validBaseUrl(baseUrl) || !validInternalBaseUrl(baseUrl))) {
-            Log.w(TAG, "Rejected non-internal default base URL: $baseUrl")
+        if (baseUrl.isNotEmpty() && !validBaseUrl(baseUrl)) {
+            Log.w(TAG, "Rejected malformed default base URL: $baseUrl")
             return
         }
         if (baseUrl == "") {

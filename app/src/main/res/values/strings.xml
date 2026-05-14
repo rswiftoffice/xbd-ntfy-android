@@ -1,6 +1,16 @@
 <resources xmlns:tools="http://schemas.android.com/tools"
            tools:ignore="MissingTranslation">
 
+    <!-- Login screen -->
+    <string name="login_title">Login</string>
+    <string name="login_server_url_hint">Server URL</string>
+    <string name="login_username_hint">Username</string>
+    <string name="login_password_hint">Password</string>
+    <string name="login_button">Log in</string>
+    <string name="login_error_invalid_credentials">Incorrect username or password</string>
+    <string name="login_error_invalid_url">Enter a valid server URL</string>
+    <string name="login_error_server_unreachable">Can\'t reach server. Check your connection.</string>
+
     <!-- Common strings -->
     <string name="common_button_next">Next</string>
     <string name="common_button_add">Add</string>
@@ -381,6 +391,13 @@
     <string name="settings_appearance_header">Appearance</string>
     <string name="settings_general_default_base_url_title">Default server</string>
     <string name="settings_general_default_base_url_default_summary">%1$s (default)</string>
+    <string name="settings_general_logout_title">Log out</string>
+    <string name="settings_general_logout_title_user">Log out (%1$s)</string>
+    <string name="settings_general_logout_title_user_host">Log out (%1$s@%2$s)</string>
+    <string name="settings_general_logout_summary">Sign out and return to the login screen</string>
+    <string name="settings_general_logout_confirm_message">Are you sure you want to log out?</string>
+    <string name="settings_general_logout_confirm_button">Log out</string>
+    <string name="settings_general_logout_cancel_button">Cancel</string>
     <string name="settings_general_users_title">Manage users</string>
     <string name="settings_general_users_summary">Add/remove users for protected topics</string>
     <string name="settings_general_users_prefs_title">Users</string>

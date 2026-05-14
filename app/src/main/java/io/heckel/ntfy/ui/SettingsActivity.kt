@@ -38,6 +38,7 @@ import io.heckel.ntfy.up.Distributor
 import io.heckel.ntfy.util.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.text.SimpleDateFormat
 import java.util.*
@@ -524,6 +525,40 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
                 } else {
                     currentUrl
                 }
+            }
+
+            // Logout (AD8 — General category, immediately after default-server). Dynamic title
+            // exposes which account/host is logged in: `Log out (user)` when the row matches
+            // the build-flavor default, `Log out (user@host)` otherwise.
+            val logoutPrefId = context?.getString(R.string.settings_general_logout_key) ?: return
+            val logoutPref: Preference? = findPreference(logoutPrefId)
+            logoutPref?.preferenceDataStore = object : PreferenceDataStore() { } // Dummy store to protect from accidentally overwriting
+            lifecycleScope.launch(Dispatchers.IO) {
+                val currentUser = repository.getUser(effectiveBaseUrl(requireContext(), repository))
+                val title = when {
+                    currentUser == null -> getString(R.string.settings_general_logout_title)
+                    currentUser.baseUrl == appBaseUrl ->
+                        getString(R.string.settings_general_logout_title_user, currentUser.username)
+                    else -> getString(
+                        R.string.settings_general_logout_title_user_host,
+                        currentUser.username,
+                        shortUrl(currentUser.baseUrl)
+                    )
+                }
+                withContext(Dispatchers.Main) { logoutPref?.title = title }
+            }
+            logoutPref?.onPreferenceClickListener = OnPreferenceClickListener {
+                MaterialAlertDialogBuilder(requireContext())
+                    .setMessage(R.string.settings_general_logout_confirm_message)
+                    .setNegativeButton(R.string.settings_general_logout_cancel_button, null)
+                    .setPositiveButton(R.string.settings_general_logout_confirm_button) { _, _ ->
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            performLogout(requireContext(), repository)
+                            withContext(Dispatchers.Main) { requireActivity().finish() }
+                        }
+                    }
+                    .show()
+                true
             }
 
             // Broadcast enabled
@@ -1163,9 +1198,16 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
     }
 
     override fun onDefaultServerUpdated(dialog: DialogFragment, url: String) {
-        repository.setDefaultBaseUrl(url)
-        if (this::settingsFragment.isInitialized) {
-            settingsFragment.refreshDefaultServerSummary()
+        // Single-account-at-a-time (slice 3 amendment): wipe the prior server's User row
+        // before switching, so the gate re-prompts on the new server. Off the UI thread —
+        // DAO delete + SharedPreferences.apply must not block the activity result callback.
+        lifecycleScope.launch(Dispatchers.IO) {
+            changeDefaultServer(this@SettingsActivity, repository, url)
+            withContext(Dispatchers.Main) {
+                if (this@SettingsActivity::settingsFragment.isInitialized) {
+                    settingsFragment.refreshDefaultServerSummary()
+                }
+            }
         }
     }
 

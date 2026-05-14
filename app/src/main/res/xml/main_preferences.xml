@@ -39,6 +39,10 @@
                 app:key="@string/settings_general_default_base_url_key"
                 app:title="@string/settings_general_default_base_url_title" />
         <Preference
+                app:key="@string/settings_general_logout_key"
+                app:title="@string/settings_general_logout_title"
+                app:summary="@string/settings_general_logout_summary"/>
+        <Preference
                 app:key="@string/settings_general_users_key"
                 app:title="@string/settings_general_users_title"
                 app:summary="@string/settings_general_users_summary"
